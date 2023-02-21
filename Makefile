@@ -1,9 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 5
-PATCHLEVEL = 4
-SUBLEVEL = 0
+PATCHLEVEL = 2
+SUBLEVEL = 21
 EXTRAVERSION =
-NAME = Kleptomaniac Octopus
+NAME = Bobtail Squid
+
+# Cross compilation flag defines
+#ARCH=arm64
+#CROSS_COMPILE=aarch64-xilinx-linux-
+#CROSS_COMPILE=aarch64-linux-gnu-
+
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"

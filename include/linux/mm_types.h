@@ -17,6 +17,10 @@
 
 #include <asm/mmu.h>
 
+#ifdef CONFIG_POPCORN
+struct remote_context;
+#endif
+
 #ifndef AT_VECTOR_SIZE_ARCH
 #define AT_VECTOR_SIZE_ARCH 0
 #endif
@@ -25,6 +29,7 @@
 
 struct address_space;
 struct mem_cgroup;
+struct hmm;
 
 /*
  * Each physical page in the system has a struct page associated with
@@ -159,6 +164,8 @@ struct page {
 			/** @pgmap: Points to the hosting device page map. */
 			struct dev_pagemap *pgmap;
 			void *zone_device_data;
+			unsigned long hmm_data;
+			unsigned long _zd_pad_1;	/* uses mapping */
 			/*
 			 * ZONE_DEVICE private pages are counted as being
 			 * mapped so the next 3 words hold the mapping, index,
@@ -467,7 +474,9 @@ struct mm_struct {
 		unsigned long flags; /* Must use atomic bitops to access */
 
 		struct core_state *core_state; /* coredumping support */
-
+#ifdef CONFIG_MEMBARRIER
+		atomic_t membarrier_state;
+#endif
 #ifdef CONFIG_AIO
 		spinlock_t			ioctx_lock;
 		struct kioctx_table __rcu	*ioctx_table;
@@ -524,6 +533,15 @@ struct mm_struct {
 		atomic_long_t hugetlb_usage;
 #endif
 		struct work_struct async_put_work;
+
+#if IS_ENABLED(CONFIG_HMM)
+		/* HMM needs to track a few things per mm */
+		struct hmm *hmm;
+#endif
+#ifdef CONFIG_POPCORN
+		struct remote_context *remote;
+#endif
+
 	} __randomize_layout;
 
 	/*
@@ -689,6 +707,10 @@ enum vm_fault_reason {
 	VM_FAULT_DONE_COW       = (__force vm_fault_t)0x001000,
 	VM_FAULT_NEEDDSYNC      = (__force vm_fault_t)0x002000,
 	VM_FAULT_HINDEX_MASK    = (__force vm_fault_t)0x0f0000,
+#ifdef CONFIG_POPCORN
+	VM_FAULT_CONTINUE       = (__force vm_fault_t)0x004000,
+       	VM_FAULT_KILLED         = (__force vm_fault_t)0x008000,
+#endif
 };
 
 /* Encode hstate index for a hwpoisoned large page */

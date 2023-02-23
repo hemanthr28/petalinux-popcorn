@@ -13,8 +13,10 @@ config ARM64
 	select ARCH_HAS_DEBUG_VIRTUAL
 	select ARCH_HAS_DEVMEM_IS_ALLOWED
 	select ARCH_HAS_DMA_COHERENT_TO_PFN
+	select ARCH_HAS_DMA_MMAP_PGPROT
 	select ARCH_HAS_DMA_PREP_COHERENT
 	select ARCH_HAS_ACPI_TABLE_UPGRADE if ACPI
+	select ARCH_HAS_ELF_RANDOMIZE
 	select ARCH_HAS_FAST_MULTIPLIER
 	select ARCH_HAS_FORTIFY_SOURCE
 	select ARCH_HAS_GCOV_PROFILE_ALL
@@ -185,6 +187,7 @@ config ARM64
 	select SWIOTLB
 	select SYSCTL_EXCEPTION_TRACE
 	select THREAD_INFO_IN_TASK
+	select ARCH_SUPPORTS_POPCORN
 	help
 	  ARM 64-bit (AArch64) Linux support.
 
@@ -270,6 +273,9 @@ config ZONE_DMA32
 	bool "Support DMA32 zone" if EXPERT
 	default y
 
+config HAVE_GENERIC_GUP
+	def_bool y
+
 config ARCH_ENABLE_MEMORY_HOTPLUG
 	def_bool y
 
@@ -296,6 +302,8 @@ config ARCH_SUPPORTS_UPROBES
 
 config ARCH_PROC_KCORE_TEXT
 	def_bool y
+
+source "kernel/Kconfig.popcorn"
 
 config KASAN_SHADOW_OFFSET
 	hex
@@ -731,14 +739,14 @@ config ARM64_4K_PAGES
 	  This feature enables 4KB pages support.
 
 config ARM64_16K_PAGES
-	bool "16KB"
+	bool "16KB" if !POPCORN
 	help
 	  The system will use 16KB pages support. AArch32 emulation
 	  requires applications compiled with 16K (or a multiple of 16K)
 	  aligned segments.
 
 config ARM64_64K_PAGES
-	bool "64KB"
+	bool "64KB" if !POPCORN
 	help
 	  This feature enables 64KB pages support (4KB by default)
 	  allowing only two levels of page tables and faster TLB
@@ -752,6 +760,7 @@ choice
 	default ARM64_VA_BITS_39 if ARM64_4K_PAGES
 	default ARM64_VA_BITS_47 if ARM64_16K_PAGES
 	default ARM64_VA_BITS_42 if ARM64_64K_PAGES
+	default ARM64_VA_BITS_48 if POPCORN
 	help
 	  Allows choosing one of multiple possible virtual address
 	  space sizes. The level of translation table is determined by
@@ -759,25 +768,25 @@ choice
 
 config ARM64_VA_BITS_36
 	bool "36-bit" if EXPERT
-	depends on ARM64_16K_PAGES
+	depends on ARM64_16K_PAGES && !POPCORN
 
 config ARM64_VA_BITS_39
 	bool "39-bit"
-	depends on ARM64_4K_PAGES
+	depends on ARM64_4K_PAGES && !POPCORN
 
 config ARM64_VA_BITS_42
 	bool "42-bit"
-	depends on ARM64_64K_PAGES
+	depends on ARM64_64K_PAGES && !POPCORN
 
 config ARM64_VA_BITS_47
 	bool "47-bit"
-	depends on ARM64_16K_PAGES
+	depends on ARM64_16K_PAGES && !POPCORN
 
 config ARM64_VA_BITS_48
 	bool "48-bit"
 
-config ARM64_VA_BITS_52
-	bool "52-bit"
+config ARM64_USER_VA_BITS_52
+	bool "52-bit (user)"
 	depends on ARM64_64K_PAGES && (ARM64_PAN || !ARM64_SW_TTBR0_PAN)
 	help
 	  Enable 52-bit virtual addressing for userspace when explicitly
@@ -941,6 +950,7 @@ config SYS_SUPPORTS_HUGETLBFS
 	def_bool y
 
 config ARCH_WANT_HUGE_PMD_SHARE
+	def_bool y if ARM64_4K_PAGES || (ARM64_16K_PAGES && !ARM64_VA_BITS_36)
 
 config ARCH_HAS_CACHE_LINE_SIZE
 	def_bool y
@@ -971,6 +981,7 @@ config PARAVIRT
 config PARAVIRT_TIME_ACCOUNTING
 	bool "Paravirtual steal time accounting"
 	select PARAVIRT
+	default n
 	help
 	  Select this option to enable fine granularity task steal time
 	  accounting. Time spent executing other tasks in parallel with
@@ -1498,6 +1509,7 @@ config ARM64_MODULE_PLTS
 
 config ARM64_PSEUDO_NMI
 	bool "Support for NMI-like interrupts"
+	depends on BROKEN # 1556553607-46531-1-git-send-email-julien.thierry@arm.com
 	select CONFIG_ARM_GIC_V3
 	help
 	  Adds support for mimicking Non-Maskable Interrupts through the use of

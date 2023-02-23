@@ -30,6 +30,8 @@ LDFLAGS_vmlinux	+= --fix-cortex-a53-843419
   endif
 endif
 
+KBUILD_DEFCONFIG := defconfig
+
 # Check for binutils support for specific extensions
 lseinstr := $(call as-instr,.arch_extension lse,-DCONFIG_AS_LSE=1)
 
@@ -119,7 +121,8 @@ KBUILD_AFLAGS += -DKASAN_SHADOW_SCALE_SHIFT=$(KASAN_SHADOW_SCALE_SHIFT)
 
 export	TEXT_OFFSET GZFLAGS
 
-core-y		+= arch/arm64/
+# core-y		+= arch/arm64/
+core-y		+= arch/arm64/kernel/ arch/arm64/mm/
 libs-y		:= arch/arm64/lib/ $(libs-y)
 core-$(CONFIG_EFI_STUB) += $(objtree)/drivers/firmware/efi/libstub/lib.a
 

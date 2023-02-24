@@ -1330,12 +1330,12 @@ force_sig_info_to_task(struct kernel_siginfo *info, struct task_struct *t)
 
 	return ret;
 }
-
+/*
 int force_sig_info(struct kernel_siginfo *info)
 {
 	return force_sig_info_to_task(info, current);
 }
-
+*/
 /*
  * Nuke all other threads in the group.
  */
@@ -1615,17 +1615,9 @@ send_sig(int sig, struct task_struct *p, int priv)
 }
 EXPORT_SYMBOL(send_sig);
 
-void force_sig(int sig)
+void force_sig(int sig, struct task_struct *p)
 {
-	struct kernel_siginfo info;
-
-	clear_siginfo(&info);
-	info.si_signo = sig;
-	info.si_errno = 0;
-	info.si_code = SI_KERNEL;
-	info.si_pid = 0;
-	info.si_uid = 0;
-	force_sig_info(&info);
+	force_sig_info(sig, SEND_SIG_PRIV, p);
 }
 EXPORT_SYMBOL(force_sig);
 

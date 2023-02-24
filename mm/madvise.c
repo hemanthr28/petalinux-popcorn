@@ -487,7 +487,7 @@ static void madvise_cold_page_range(struct mmu_gather *tlb,
 	walk_page_range(vma->vm_mm, addr, end, &cold_walk_ops, &walk_private);
 	tlb_end_vma(tlb, vma);
 }
-
+/*
 static long madvise_cold(struct vm_area_struct *vma,
 			struct vm_area_struct **prev,
 			unsigned long start_addr, unsigned long end_addr)
@@ -506,7 +506,7 @@ static long madvise_cold(struct vm_area_struct *vma,
 
 	return 0;
 }
-
+*/
 static void madvise_pageout_page_range(struct mmu_gather *tlb,
 			     struct vm_area_struct *vma,
 			     unsigned long addr, unsigned long end)
@@ -536,7 +536,7 @@ static inline bool can_do_pageout(struct vm_area_struct *vma)
 	return inode_owner_or_capable(file_inode(vma->vm_file)) ||
 		inode_permission(file_inode(vma->vm_file), MAY_WRITE) == 0;
 }
-
+/*
 static long madvise_pageout(struct vm_area_struct *vma,
 			struct vm_area_struct **prev,
 			unsigned long start_addr, unsigned long end_addr)
@@ -558,7 +558,7 @@ static long madvise_pageout(struct vm_area_struct *vma,
 
 	return 0;
 }
-
+*/
 static int madvise_free_pte_range(pmd_t *pmd, unsigned long addr,
 				unsigned long end, struct mm_walk *walk)
 

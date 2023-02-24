@@ -25,7 +25,6 @@
 //#else
 //# define MAP_UNINITIALIZED 0x0		/* Don't support this flag */
 //#endif
-*/
 
 /* 0x0100 - 0x4000 flags are defined in asm-generic/mman.h */
 

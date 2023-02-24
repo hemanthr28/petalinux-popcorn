@@ -81,6 +81,11 @@
 #include <asm/pgtable.h>
 
 #include "internal.h"
+#ifdef CONFIG_POPCORN
+#include <linux/delay.h>
+#include <popcorn/page_server.h>
+#include <popcorn/process_server.h>
+#endif
 
 #if defined(LAST_CPUPID_NOT_IN_PAGE_FLAGS) && !defined(CONFIG_COMPILE_TEST)
 #warning Unfortunate NUMA and NUMA Balancing config, growing page-frame for last_cpupid.
@@ -115,7 +120,11 @@ int randomize_va_space __read_mostly =
 #ifdef CONFIG_COMPAT_BRK
 					1;
 #else
+#ifdef CONFIG_POPCORN
+					0;	/* Popcorn needs address space randomization to be turned off for the time being */
+#else
 					2;
+#endif
 #endif
 
 static int __init disable_randmaps(char *s)
@@ -1025,9 +1034,9 @@ again:
 		pte_t ptent = *pte;
 		if (pte_none(ptent))
 			continue;
-
-		if (need_resched())
-			break;
+#ifdef CONFIG_POPCORN
+		page_server_zap_pte(vma, addr, pte, &ptent);
+#endif
 
 		if (pte_present(ptent)) {
 			struct page *page;
@@ -2173,7 +2182,7 @@ static inline void cow_user_page(struct page *dst, struct page *src, unsigned lo
 		copy_user_highpage(dst, src, va, vma);
 }
 
-static gfp_t __get_fault_gfp_mask(struct vm_area_struct *vma)
+gfp_t __get_fault_gfp_mask(struct vm_area_struct *vma)
 {
 	struct file *vm_file = vma->vm_file;
 

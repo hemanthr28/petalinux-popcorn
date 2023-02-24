@@ -54,8 +54,8 @@ static int madvise_need_mmap_write(int behavior)
 	case MADV_REMOVE:
 	case MADV_WILLNEED:
 	case MADV_DONTNEED:
-	case MADV_COLD:
-	case MADV_PAGEOUT:
+	//case MADV_COLD:
+	//case MADV_PAGEOUT:
 	case MADV_FREE:
 		return 0;
 	default:
@@ -956,10 +956,10 @@ madvise_vma(struct vm_area_struct *vma, struct vm_area_struct **prev,
 		return madvise_remove(vma, prev, start, end);
 	case MADV_WILLNEED:
 		return madvise_willneed(vma, prev, start, end);
-	case MADV_COLD:
+	/*case MADV_COLD:
 		return madvise_cold(vma, prev, start, end);
 	case MADV_PAGEOUT:
-		return madvise_pageout(vma, prev, start, end);
+		return madvise_pageout(vma, prev, start, end);*/
 	case MADV_FREE:
 	case MADV_DONTNEED:
 		return madvise_dontneed_free(vma, prev, start, end, behavior);

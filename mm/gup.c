@@ -22,6 +22,11 @@
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
 
+#ifdef CONFIG_POPCORN
+#include <popcorn/process_server.h>
+#include <popcorn/vma_server.h>
+#endif
+
 #include "internal.h"
 
 struct follow_page_context {
@@ -29,9 +34,45 @@ struct follow_page_context {
 	unsigned int page_mask;
 };
 
+typedef int (*set_dirty_func_t)(struct page *page);
+
+static void __put_user_pages_dirty(struct page **pages,
+				   unsigned long npages,
+				   set_dirty_func_t sdf)
+{
+	unsigned long index;
+
+	for (index = 0; index < npages; index++) {
+		struct page *page = compound_head(pages[index]);
+
+		/*
+		 * Checking PageDirty at this point may race with
+		 * clear_page_dirty_for_io(), but that's OK. Two key cases:
+		 *
+		 * 1) This code sees the page as already dirty, so it skips
+		 * the call to sdf(). That could happen because
+		 * clear_page_dirty_for_io() called page_mkclean(),
+		 * followed by set_page_dirty(). However, now the page is
+		 * going to get written back, which meets the original
+		 * intention of setting it dirty, so all is well:
+		 * clear_page_dirty_for_io() goes on to call
+		 * TestClearPageDirty(), and write the page back.
+		 *
+		 * 2) This code sees the page as clean, so it calls sdf().
+		 * The page stays dirty, despite being written back, so it
+		 * gets written back again in the next writeback cycle.
+		 * This is harmless.
+		 */
+		if (!PageDirty(page))
+			sdf(page);
+
+		put_user_page(page);
+	}
+}
+
 /**
- * put_user_pages_dirty_lock() - release and optionally dirty gup-pinned pages
- * @pages:  array of pages to be maybe marked dirty, and definitely released.
+ * put_user_pages_dirty() - release and dirty an array of gup-pinned pages
+ * @pages:  array of pages to be marked dirty and released.
  * @npages: number of pages in the @pages array.
  * @make_dirty: whether to mark the pages dirty
  *
@@ -39,60 +80,40 @@ struct follow_page_context {
  * variants called on that page.
  *
  * For each page in the @pages array, make that page (or its head page, if a
- * compound page) dirty, if @make_dirty is true, and if the page was previously
- * listed as clean. In any case, releases all pages using put_user_page(),
- * possibly via put_user_pages(), for the non-dirty case.
+ * compound page) dirty, if it was previously listed as clean. Then, release
+ * the page using put_user_page().
  *
  * Please see the put_user_page() documentation for details.
  *
- * set_page_dirty_lock() is used internally. If instead, set_page_dirty() is
- * required, then the caller should a) verify that this is really correct,
- * because _lock() is usually required, and b) hand code it:
- * set_page_dirty_lock(), put_user_page().
+ * set_page_dirty(), which does not lock the page, is used here.
+ * Therefore, it is the caller's responsibility to ensure that this is
+ * safe. If not, then put_user_pages_dirty_lock() should be called instead.
  *
  */
-void put_user_pages_dirty_lock(struct page **pages, unsigned long npages,
-			       bool make_dirty)
+void put_user_pages_dirty(struct page **pages, unsigned long npages)
 {
-	unsigned long index;
+	__put_user_pages_dirty(pages, npages, set_page_dirty);
+}
+EXPORT_SYMBOL(put_user_pages_dirty);
 
-	/*
-	 * TODO: this can be optimized for huge pages: if a series of pages is
-	 * physically contiguous and part of the same compound page, then a
-	 * single operation to the head page should suffice.
-	 */
-
-	if (!make_dirty) {
-		put_user_pages(pages, npages);
-		return;
-	}
-
-	for (index = 0; index < npages; index++) {
-		struct page *page = compound_head(pages[index]);
-		/*
-		 * Checking PageDirty at this point may race with
-		 * clear_page_dirty_for_io(), but that's OK. Two key
-		 * cases:
-		 *
-		 * 1) This code sees the page as already dirty, so it
-		 * skips the call to set_page_dirty(). That could happen
-		 * because clear_page_dirty_for_io() called
-		 * page_mkclean(), followed by set_page_dirty().
-		 * However, now the page is going to get written back,
-		 * which meets the original intention of setting it
-		 * dirty, so all is well: clear_page_dirty_for_io() goes
-		 * on to call TestClearPageDirty(), and write the page
-		 * back.
-		 *
-		 * 2) This code sees the page as clean, so it calls
-		 * set_page_dirty(). The page stays dirty, despite being
-		 * written back, so it gets written back again in the
-		 * next writeback cycle. This is harmless.
-		 */
-		if (!PageDirty(page))
-			set_page_dirty_lock(page);
-		put_user_page(page);
-	}
+/**
+ * put_user_pages_dirty_lock() - release and dirty an array of gup-pinned pages
+ * @pages:  array of pages to be marked dirty and released.
+ * @npages: number of pages in the @pages array.
+ *
+ * For each page in the @pages array, make that page (or its head page, if a
+ * compound page) dirty, if it was previously listed as clean. Then, release
+ * the page using put_user_page().
+ *
+ * Please see the put_user_page() documentation for details.
+ *
+ * This is just like put_user_pages_dirty(), except that it invokes
+ * set_page_dirty_lock(), instead of set_page_dirty().
+ *
+ */
+void put_user_pages_dirty_lock(struct page **pages, unsigned long npages)
+{
+	__put_user_pages_dirty(pages, npages, set_page_dirty_lock);
 }
 EXPORT_SYMBOL(put_user_pages_dirty_lock);
 
@@ -959,6 +980,17 @@ int fixup_user_fault(struct task_struct *tsk, struct mm_struct *mm,
 
 retry:
 	vma = find_extend_vma(mm, address);
+#ifdef CONFIG_POPCORN
+	if (distributed_remote_process(tsk)) {
+		if (!vma || address < vma->vm_start) {
+			if (vma_server_fetch_vma(tsk, address) == 0) {
+				/* Replace with updated VMA */
+				vma = find_extend_vma(mm, address);
+			}
+		}
+	}
+#endif
+
 	if (!vma || address < vma->vm_start)
 		return -EFAULT;
 
@@ -1089,6 +1121,86 @@ static __always_inline long __get_user_pages_locked(struct task_struct *tsk,
 	}
 	return pages_done;
 }
+
+/*
+ * We can leverage the VM_FAULT_RETRY functionality in the page fault
+ * paths better by using either get_user_pages_locked() or
+ * get_user_pages_unlocked().
+ *
+ * get_user_pages_locked() is suitable to replace the form:
+ *
+ *      down_read(&mm->mmap_sem);
+ *      do_something()
+ *      get_user_pages(tsk, mm, ..., pages, NULL);
+ *      up_read(&mm->mmap_sem);
+ *
+ *  to:
+ *
+ *      int locked = 1;
+ *      down_read(&mm->mmap_sem);
+ *      do_something()
+ *      get_user_pages_locked(tsk, mm, ..., pages, &locked);
+ *      if (locked)
+ *          up_read(&mm->mmap_sem);
+ */
+long get_user_pages_locked(unsigned long start, unsigned long nr_pages,
+			   unsigned int gup_flags, struct page **pages,
+			   int *locked)
+{
+	/*
+	 * FIXME: Current FOLL_LONGTERM behavior is incompatible with
+	 * FAULT_FLAG_ALLOW_RETRY because of the FS DAX check requirement on
+	 * vmas.  As there are no users of this flag in this call we simply
+	 * disallow this option for now.
+	 */
+	if (WARN_ON_ONCE(gup_flags & FOLL_LONGTERM))
+		return -EINVAL;
+
+	return __get_user_pages_locked(current, current->mm, start, nr_pages,
+				       pages, NULL, locked,
+				       gup_flags | FOLL_TOUCH);
+}
+EXPORT_SYMBOL(get_user_pages_locked);
+
+/*
+ * get_user_pages_unlocked() is suitable to replace the form:
+ *
+ *      down_read(&mm->mmap_sem);
+ *      get_user_pages(tsk, mm, ..., pages, NULL);
+ *      up_read(&mm->mmap_sem);
+ *
+ *  with:
+ *
+ *      get_user_pages_unlocked(tsk, mm, ..., pages);
+ *
+ * It is functionally equivalent to get_user_pages_fast so
+ * get_user_pages_fast should be used instead if specific gup_flags
+ * (e.g. FOLL_FORCE) are not required.
+ */
+long get_user_pages_unlocked(unsigned long start, unsigned long nr_pages,
+			     struct page **pages, unsigned int gup_flags)
+{
+	struct mm_struct *mm = current->mm;
+	int locked = 1;
+	long ret;
+
+	/*
+	 * FIXME: Current FOLL_LONGTERM behavior is incompatible with
+	 * FAULT_FLAG_ALLOW_RETRY because of the FS DAX check requirement on
+	 * vmas.  As there are no users of this flag in this call we simply
+	 * disallow this option for now.
+	 */
+	if (WARN_ON_ONCE(gup_flags & FOLL_LONGTERM))
+		return -EINVAL;
+
+	down_read(&mm->mmap_sem);
+	ret = __get_user_pages_locked(current, mm, start, nr_pages, pages, NULL,
+				      &locked, gup_flags | FOLL_TOUCH);
+	if (locked)
+		up_read(&mm->mmap_sem);
+	return ret;
+}
+EXPORT_SYMBOL(get_user_pages_unlocked);
 
 /*
  * get_user_pages_remote() - pin user pages in memory

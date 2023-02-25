@@ -1629,7 +1629,7 @@ EXPORT_SYMBOL(force_sig);
  */
 void force_sigsegv(int sig, struct task_struct *p)
 {
-	struct task_struct *p = current;
+	//struct task_struct *p = current;
 
 	if (sig == SIGSEGV) {
 		unsigned long flags;
@@ -1639,7 +1639,7 @@ void force_sigsegv(int sig, struct task_struct *p)
 	}
 	force_sig(SIGSEGV, p);
 }
-
+/*
 int force_sig_fault_to_task(int sig, int code, void __user *addr
 	___ARCH_SI_TRAPNO(int trapno)
 	___ARCH_SI_IA64(int imm, unsigned int flags, unsigned long isr)
@@ -1661,7 +1661,7 @@ int force_sig_fault_to_task(int sig, int code, void __user *addr
 	info.si_isr = isr;
 #endif
 	return force_sig_info_to_task(&info, t);
-}
+}*/
 /*
 int force_sig_fault(int sig, int code, void __user *addr
 	___ARCH_SI_TRAPNO(int trapno)

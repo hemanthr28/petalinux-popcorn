@@ -788,7 +788,7 @@ static void kmemcg_cache_deactivate(struct kmem_cache *s)
 unlock:
 	spin_unlock_irq(&memcg_kmem_wq_lock);
 }
-
+/*
 void memcg_deactivate_kmem_caches(struct mem_cgroup *memcg,
 				  struct mem_cgroup *parent)
 {
@@ -830,7 +830,7 @@ void memcg_deactivate_kmem_caches(struct mem_cgroup *memcg,
 	put_online_mems();
 	put_online_cpus();
 }
-
+*/
 static int shutdown_memcg_caches(struct kmem_cache *s)
 {
 	struct memcg_cache_array *arr;

@@ -240,7 +240,12 @@ ifneq ($(KBUILD_ABS_SRCTREE),)
 srctree := $(abs_srctree)
 endif
 
+export KBUILD_CHECKSRC KBUILD_EXTMOD KBUILD_SRC
+
 objtree		:= .
+src		:= $(srctree)
+obj		:= $(objtree)
+
 VPATH		:= $(srctree)
 
 export building_out_of_srctree srctree objtree VPATH
@@ -1645,6 +1650,8 @@ help:
 	@echo  ''
 
 PHONY += prepare
+prepare:
+	$(cmd_crmodverdir)
 endif # KBUILD_EXTMOD
 
 # Handle descending into subdirectories listed in $(build-dirs)
@@ -1816,6 +1823,11 @@ quiet_cmd_rmfiles = $(if $(wildcard $(rm-files)),CLEAN   $(wildcard $(rm-files))
 quiet_cmd_depmod = DEPMOD  $(KERNELRELEASE)
       cmd_depmod = $(CONFIG_SHELL) $(srctree)/scripts/depmod.sh $(DEPMOD) \
                    $(KERNELRELEASE)
+
+# Create temporary dir for module support files
+# clean it up only when building all modules
+cmd_crmodverdir = $(Q)mkdir -p $(MODVERDIR) \
+                  $(if $(KBUILD_MODULES),; rm -f $(MODVERDIR)/*)
 
 # read saved command lines for existing targets
 existing-targets := $(wildcard $(sort $(targets)))

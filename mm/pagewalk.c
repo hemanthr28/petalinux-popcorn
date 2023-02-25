@@ -9,7 +9,7 @@ static int walk_pte_range(pmd_t *pmd, unsigned long addr, unsigned long end,
 {
 	pte_t *pte;
 	int err = 0;
-	const struct mm_walk_ops *ops = walk->ops;
+	//const struct mm_walk_ops *ops = walk->ops;
 
 	pte = pte_offset_map(pmd, addr);
 	for (;;) {
@@ -31,7 +31,7 @@ static int walk_pmd_range(pud_t *pud, unsigned long addr, unsigned long end,
 {
 	pmd_t *pmd;
 	unsigned long next;
-	const struct mm_walk_ops *ops = walk->ops;
+	//const struct mm_walk_ops *ops = walk->ops;
 	int err = 0;
 
 	pmd = pmd_offset(pud, addr);

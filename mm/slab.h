@@ -312,6 +312,31 @@ static inline const char *cache_name(struct kmem_cache *s)
 	return s->name;
 }
 
+/*
+ * Note, we protect with RCU only the memcg_caches array, not per-memcg caches.
+ * That said the caller must assure the memcg's cache won't go away by either
+ * taking a css reference to the owner cgroup, or holding the slab_mutex.
+ */
+static inline struct kmem_cache *
+cache_from_memcg_idx(struct kmem_cache *s, int idx)
+{
+	struct kmem_cache *cachep;
+	struct memcg_cache_array *arr;
+
+	rcu_read_lock();
+	arr = rcu_dereference(s->memcg_params.memcg_caches);
+
+	/*
+	 * Make sure we will access the up-to-date value. The code updating
+	 * memcg_caches issues a write barrier to match this (see
+	 * memcg_create_kmem_cache()).
+	 */
+	cachep = READ_ONCE(arr->entries[idx]);
+	rcu_read_unlock();
+
+	return cachep;
+}
+
 static inline struct kmem_cache *memcg_root_cache(struct kmem_cache *s)
 {
 	if (is_root_cache(s))

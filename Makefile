@@ -1,15 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 5
-PATCHLEVEL = 2
-SUBLEVEL = 21
+PATCHLEVEL = 4
+SUBLEVEL = 0
 EXTRAVERSION =
-NAME = Bobtail Squid
-
-# Cross compilation flag defines
-#ARCH=arm64
-#CROSS_COMPILE=aarch64-xilinx-linux-
-#CROSS_COMPILE=aarch64-linux-gnu-
-
+NAME = Kleptomaniac Octopus
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
@@ -212,17 +206,8 @@ ifndef KBUILD_CHECKSRC
   KBUILD_CHECKSRC = 0
 endif
 
-# Use make M=dir to specify directory of external module to build
-# Old syntax make ... SUBDIRS=$PWD is still supported
-# Setting the environment variable KBUILD_EXTMOD take precedence
-ifdef SUBDIRS
-  $(warning ================= WARNING ================)
-  $(warning 'SUBDIRS' will be removed after Linux 5.3)
-  $(warning Please use 'M=' or 'KBUILD_EXTMOD' instead)
-  $(warning ==========================================)
-  KBUILD_EXTMOD ?= $(SUBDIRS)
-endif
-
+# Use make M=dir or set the environment variable KBUILD_EXTMOD to specify the
+# directory of external module to build. Setting M= takes precedence.
 ifeq ("$(origin M)", "command line")
   KBUILD_EXTMOD := $(M)
 endif
@@ -245,21 +230,14 @@ else
 	building_out_of_srctree := 1
 endif
 
-	# TODO:
-	# KBUILD_SRC is only used to distinguish in-tree/out-of-tree build.
-	# Replace it with $(srctree) or something.
-	KBUILD_SRC := $(abs_srctree)
+ifneq ($(KBUILD_ABS_SRCTREE),)
+srctree := $(abs_srctree)
 endif
 
-export KBUILD_CHECKSRC KBUILD_EXTMOD KBUILD_SRC
-
 objtree		:= .
-src		:= $(srctree)
-obj		:= $(objtree)
-
 VPATH		:= $(srctree)
 
-export srctree objtree VPATH
+export building_out_of_srctree srctree objtree VPATH
 
 # To make sure we do not include .config for any of the *config targets
 # catch them early, and hand them over to scripts/kconfig/Makefile
@@ -455,7 +433,7 @@ NOSTDINC_FLAGS :=
 CFLAGS_MODULE   =
 AFLAGS_MODULE   =
 LDFLAGS_MODULE  =
-CFLAGS_KERNEL	= -g
+CFLAGS_KERNEL	=
 AFLAGS_KERNEL	=
 LDFLAGS_vmlinux =
 
@@ -472,7 +450,7 @@ USERINCLUDE    := \
 LINUXINCLUDE    := \
 		-I$(srctree)/arch/$(SRCARCH)/include \
 		-I$(objtree)/arch/$(SRCARCH)/include/generated \
-		$(if $(filter .,$(srctree)),,-I$(srctree)/include) \
+		$(if $(building_out_of_srctree),-I$(srctree)/include) \
 		-I$(objtree)/include \
 		$(USERINCLUDE)
 
@@ -504,12 +482,6 @@ export CFLAGS_KASAN CFLAGS_KASAN_NOSANITIZE CFLAGS_UBSAN
 export KBUILD_AFLAGS AFLAGS_KERNEL AFLAGS_MODULE
 export KBUILD_AFLAGS_MODULE KBUILD_CFLAGS_MODULE KBUILD_LDFLAGS_MODULE
 export KBUILD_AFLAGS_KERNEL KBUILD_CFLAGS_KERNEL
-export KBUILD_ARFLAGS
-
-# When compiling out-of-tree modules, put MODVERDIR in the module
-# tree rather than in the kernel tree. The kernel tree might
-# even be read-only.
-export MODVERDIR := $(if $(KBUILD_EXTMOD),$(firstword $(KBUILD_EXTMOD))/).tmp_versions
 
 # Files to ignore in find ... statements
 
@@ -678,11 +650,6 @@ RETPOLINE_VDSO_CFLAGS := $(call cc-option,$(RETPOLINE_VDSO_CFLAGS_GCC),$(call cc
 export RETPOLINE_CFLAGS
 export RETPOLINE_VDSO_CFLAGS
 
-# The arch Makefile can set ARCH_{CPP,A,C}FLAGS to override the default
-# values of the respective KBUILD_* variables
-ARCH_CPPFLAGS :=
-ARCH_AFLAGS :=
-ARCH_CFLAGS :=
 include arch/$(SRCARCH)/Makefile
 
 ifdef need-config
@@ -834,12 +801,6 @@ endif
 KBUILD_CFLAGS += $(DEBUG_CFLAGS)
 export DEBUG_CFLAGS
 
-ifdef CONFIG_NO_AUTO_INLINE
-KBUILD_CFLAGS   += $(call cc-option, -fno-inline-functions) \
-		   $(call cc-option, -fno-inline-small-functions) \
-		   $(call cc-option, -fno-inline-functions-called-once)
-endif
-
 ifdef CONFIG_FUNCTION_TRACER
 ifdef CONFIG_FTRACE_MCOUNT_RECORD
   # gcc 5 supports generating the mcount tables directly
@@ -945,10 +906,8 @@ KBUILD_CPPFLAGS += $(KCPPFLAGS)
 KBUILD_AFLAGS   += $(KAFLAGS)
 KBUILD_CFLAGS   += $(KCFLAGS)
 
-# Use --build-id when available.
-LDFLAGS_BUILD_ID := $(call ld-option, --build-id)
-KBUILD_LDFLAGS_MODULE += $(LDFLAGS_BUILD_ID)
-LDFLAGS_vmlinux += $(LDFLAGS_BUILD_ID)
+KBUILD_LDFLAGS_MODULE += --build-id
+LDFLAGS_vmlinux += --build-id
 
 ifeq ($(CONFIG_STRIP_ASM_SYMS),y)
 LDFLAGS_vmlinux	+= $(call ld-option, -X,)
@@ -1054,7 +1013,7 @@ PHONY += prepare0
 export MODORDER := $(extmod-prefix)modules.order
 
 ifeq ($(KBUILD_EXTMOD),)
-core-y		+= kernel/ certs/ mm/ fs/ ipc/ security/ crypto/ block/ msg_layer/
+core-y		+= kernel/ certs/ mm/ fs/ ipc/ security/ crypto/ block/
 
 vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, $(init-y) $(init-m) \
 		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \
@@ -1088,7 +1047,6 @@ vmlinux-deps := $(KBUILD_LDS) $(KBUILD_VMLINUX_OBJS) $(KBUILD_VMLINUX_LIBS)
 
 # Recurse until adjust_autoksyms.sh is satisfied
 PHONY += autoksyms_recursive
-autoksyms_recursive: $(vmlinux-deps)
 ifdef CONFIG_TRIM_UNUSED_KSYMS
 autoksyms_recursive: descend modules.order
 	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/adjust_autoksyms.sh \
@@ -1119,9 +1077,6 @@ vmlinux: scripts/link-vmlinux.sh autoksyms_recursive $(vmlinux-deps) FORCE
 	+$(call if_changed,link-vmlinux)
 
 targets := vmlinux
-
-# Some samples need headers_install.
-samples: headers_install
 
 # The actual objects are generated when descending,
 # make sure no implicit rule kicks in
@@ -1426,7 +1381,6 @@ DISTCLEAN_FILES += tags TAGS cscope* GPATH GTAGS GRTAGS GSYMS
 #
 clean: rm-dirs  := $(CLEAN_DIRS)
 clean: rm-files := $(CLEAN_FILES)
-clean-dirs      := $(addprefix _clean_, . $(vmlinux-alldirs))
 
 PHONY += archclean vmlinuxclean
 
@@ -1469,7 +1423,6 @@ distclean: mrproper
 
 # Packaging of the kernel to various formats
 # ---------------------------------------------------------------------------
-package-dir	:= scripts/package
 
 %src-pkg: FORCE
 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.package $@
@@ -1686,8 +1639,6 @@ help:
 	@echo  ''
 
 PHONY += prepare
-prepare:
-	$(cmd_crmodverdir)
 endif # KBUILD_EXTMOD
 
 # Handle descending into subdirectories listed in $(build-dirs)
@@ -1859,11 +1810,6 @@ quiet_cmd_rmfiles = $(if $(wildcard $(rm-files)),CLEAN   $(wildcard $(rm-files))
 quiet_cmd_depmod = DEPMOD  $(KERNELRELEASE)
       cmd_depmod = $(CONFIG_SHELL) $(srctree)/scripts/depmod.sh $(DEPMOD) \
                    $(KERNELRELEASE)
-
-# Create temporary dir for module support files
-# clean it up only when building all modules
-cmd_crmodverdir = $(Q)mkdir -p $(MODVERDIR) \
-                  $(if $(KBUILD_MODULES),; rm -f $(MODVERDIR)/*)
 
 # read saved command lines for existing targets
 existing-targets := $(wildcard $(sort $(targets)))

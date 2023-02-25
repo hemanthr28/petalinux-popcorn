@@ -1627,7 +1627,7 @@ EXPORT_SYMBOL(force_sig);
  * the problem was already a SIGSEGV, we'll want to
  * make sure we don't even try to deliver the signal..
  */
-void force_sigsegv(int sig)
+void force_sigsegv(int sig, struct task_struct *p)
 {
 	struct task_struct *p = current;
 
@@ -1637,7 +1637,7 @@ void force_sigsegv(int sig)
 		p->sighand->action[sig - 1].sa.sa_handler = SIG_DFL;
 		spin_unlock_irqrestore(&p->sighand->siglock, flags);
 	}
-	force_sig(SIGSEGV);
+	force_sig(SIGSEGV, p);
 }
 
 int force_sig_fault_to_task(int sig, int code, void __user *addr
@@ -1662,7 +1662,7 @@ int force_sig_fault_to_task(int sig, int code, void __user *addr
 #endif
 	return force_sig_info_to_task(&info, t);
 }
-
+/*
 int force_sig_fault(int sig, int code, void __user *addr
 	___ARCH_SI_TRAPNO(int trapno)
 	___ARCH_SI_IA64(int imm, unsigned int flags, unsigned long isr))
@@ -1670,6 +1670,29 @@ int force_sig_fault(int sig, int code, void __user *addr
 	return force_sig_fault_to_task(sig, code, addr
 				       ___ARCH_SI_TRAPNO(trapno)
 				       ___ARCH_SI_IA64(imm, flags, isr), current);
+}*/
+
+int force_sig_fault(int sig, int code, void __user *addr
+	___ARCH_SI_TRAPNO(int trapno)
+	___ARCH_SI_IA64(int imm, unsigned int flags, unsigned long isr)
+	, struct task_struct *t)
+{
+	struct kernel_siginfo info;
+
+	clear_siginfo(&info);
+	info.si_signo = sig;
+	info.si_errno = 0;
+	info.si_code  = code;
+	info.si_addr  = addr;
+#ifdef __ARCH_SI_TRAPNO
+	info.si_trapno = trapno;
+#endif
+#ifdef __ia64__
+	info.si_imm = imm;
+	info.si_flags = flags;
+	info.si_isr = isr;
+#endif
+	return force_sig_info(info.si_signo, &info, t);
 }
 
 int send_sig_fault(int sig, int code, void __user *addr
@@ -1695,7 +1718,7 @@ int send_sig_fault(int sig, int code, void __user *addr
 	return send_sig_info(info.si_signo, &info, t);
 }
 
-int force_sig_mceerr(int code, void __user *addr, short lsb)
+int force_sig_mceerr(int code, void __user *addr, short lsb, struct task_struct *t)
 {
 	struct kernel_siginfo info;
 
@@ -1706,7 +1729,7 @@ int force_sig_mceerr(int code, void __user *addr, short lsb)
 	info.si_code = code;
 	info.si_addr = addr;
 	info.si_addr_lsb = lsb;
-	return force_sig_info(&info);
+	return force_sig_info(info.si_signo, &info, t);
 }
 
 int send_sig_mceerr(int code, void __user *addr, short lsb, struct task_struct *t)
@@ -1735,7 +1758,7 @@ int force_sig_bnderr(void __user *addr, void __user *lower, void __user *upper)
 	info.si_addr  = addr;
 	info.si_lower = lower;
 	info.si_upper = upper;
-	return force_sig_info(&info);
+	return force_sig_info(info.si_signo, &info, current);
 }
 
 #ifdef SEGV_PKUERR
@@ -1749,7 +1772,7 @@ int force_sig_pkuerr(void __user *addr, u32 pkey)
 	info.si_code  = SEGV_PKUERR;
 	info.si_addr  = addr;
 	info.si_pkey  = pkey;
-	return force_sig_info(&info);
+	return force_sig_info(info.si_signo, &info, current);
 }
 #endif
 
@@ -1765,7 +1788,7 @@ int force_sig_ptrace_errno_trap(int errno, void __user *addr)
 	info.si_errno = errno;
 	info.si_code  = TRAP_HWBKPT;
 	info.si_addr  = addr;
-	return force_sig_info(&info);
+	return force_sig_info(info.si_signo, &info, current);
 }
 
 int kill_pgrp(struct pid *pid, int sig, int priv)
@@ -2762,7 +2785,7 @@ static void signal_delivered(struct ksignal *ksig, int stepping)
 void signal_setup_done(int failed, struct ksignal *ksig, int stepping)
 {
 	if (failed)
-		force_sigsegv(ksig->sig);
+		force_sigsegv(ksig->sig, current);
 	else
 		signal_delivered(ksig, stepping);
 }

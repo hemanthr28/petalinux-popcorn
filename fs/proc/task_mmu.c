@@ -799,18 +799,18 @@ static void __show_smap(struct seq_file *m, const struct mem_size_stats *mss)
 {
 	SEQ_PUT_DEC("Rss:            ", mss->resident);
 	SEQ_PUT_DEC(" kB\nPss:            ", mss->pss >> PSS_SHIFT);
-	if (rollup_mode) {
+	//if (rollup_mode) {
 		/*
 		 * These are meaningful only for smaps_rollup, otherwise two of
 		 * them are zero, and the other one is the same as Pss.
 		 */
-		SEQ_PUT_DEC(" kB\nPss_Anon:       ",
+		/*SEQ_PUT_DEC(" kB\nPss_Anon:       ",
 			mss->pss_anon >> PSS_SHIFT);
 		SEQ_PUT_DEC(" kB\nPss_File:       ",
 			mss->pss_file >> PSS_SHIFT);
 		SEQ_PUT_DEC(" kB\nPss_Shmem:      ",
 			mss->pss_shmem >> PSS_SHIFT);
-	}
+	}*/
 	SEQ_PUT_DEC(" kB\nShared_Clean:   ", mss->shared_clean);
 	SEQ_PUT_DEC(" kB\nShared_Dirty:   ", mss->shared_dirty);
 	SEQ_PUT_DEC(" kB\nPrivate_Clean:  ", mss->private_clean);

@@ -310,7 +310,7 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	cpu_uninstall_idmap();
 
-	xen_early_init();
+	//xen_early_init();
 	efi_init();
 	arm64_memblock_init();
 
